@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Andamento BetspecialPro</title>
+<style>
+  body { background:#0a0e1a; color:#e5e7eb; font-family:'Inter',system-ui,sans-serif; margin:0; padding:20px; }
+  h3 { font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:1px; margin:22px 0 12px; color:#f97316; }
+  .bsp-kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin-bottom:24px; }
+  .bsp-kpi { background:#151b2b; border:1px solid #1f2937; border-radius:12px; padding:14px; text-align:center; }
+  .bsp-kpi-lbl { font-size:11px; color:#94a3b8; text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
+  .bsp-kpi-val { font-family:'Bebas Neue',sans-serif; font-size:26px; letter-spacing:1px; color:#f97316; line-height:1; }
+  .bsp-chart-box { background:#151b2b; border:1px solid #1f2937; border-radius:14px; padding:20px; margin-bottom:24px; }
+  .bsp-bets-box { background:#151b2b; border:1px solid #1f2937; border-radius:14px; padding:20px; }
+  .bsp-bet-row { display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid #1f2937; font-size:14px; gap:10px; flex-wrap:wrap; }
+  .bsp-bet-row:last-child { border-bottom:none; }
+  .bsp-bet-win { color:#84cc16; font-weight:700; }
+  .bsp-bet-loss { color:#ef4444; font-weight:700; }
+  .bsp-updated { margin-top:30px; padding-top:20px; border-top:1px solid #1f2937; font-size:13px; color:#94a3b8; text-align:center; }
+</style>
+</head>
+<body>
+
+<div class="bsp-kpi-grid">
+  <div class="bsp-kpi"><div class="bsp-kpi-lbl">Bankroll</div><div class="bsp-kpi-val" id="kpi-bankroll">—</div></div>
+  <div class="bsp-kpi"><div class="bsp-kpi-lbl">P/L</div><div class="bsp-kpi-val" id="kpi-pl">—</div></div>
+  <div class="bsp-kpi"><div class="bsp-kpi-lbl">Win Rate</div><div class="bsp-kpi-val" id="kpi-wr">—</div></div>
+  <div class="bsp-kpi"><div class="bsp-kpi-lbl">ROI</div><div class="bsp-kpi-val" id="kpi-roi">—</div></div>
+</div>
+
+<h3>📈 Bankroll nel tempo</h3>
+<div class="bsp-chart-box"><canvas id="chart-bankroll" height="80"></canvas></div>
+
+<h3>🎯 Ultime 10 giocate</h3>
+<div id="last-bets" class="bsp-bets-box"><div style="color:#94a3b8">Caricamento...</div></div>
+
+<p class="bsp-updated">Aggiornato automaticamente. Ultimo sync: <span id="last-update">—</span></p>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(async function() {
+  const GIST_ID = 'e5d9b6eafba073a9bbdd31f63a41ed37';
+  const API_URL = 'https://api.github.com/gists/' + GIST_ID;
+  try {
+    const r = await fetch(API_URL);
+    const gist = await r.json();
+    const rawUrl = gist.files['betspecialpro_stats.json'].raw_url;
+    const data = await (await fetch(rawUrl)).json();
+
+    document.getElementById('kpi-bankroll').textContent = '€' + data.bankroll.toFixed(2);
+    const pl = document.getElementById('kpi-pl');
+    pl.textContent = (data.p_l >= 0 ? '+' : '') + '€' + data.p_l.toFixed(2);
+    pl.style.color = data.p_l >= 0 ? '#84cc16' : '#ef4444';
+    document.getElementById('kpi-wr').textContent = data.win_rate.toFixed(1) + '%';
+    const roi = document.getElementById('kpi-roi');
+    roi.textContent = (data.roi >= 0 ? '+' : '') + data.roi.toFixed(1) + '%';
+    roi.style.color = data.roi >= 0 ? '#84cc16' : '#ef4444';
+    document.getElementById('last-update').textContent = data.updated;
+
+    const ctx = document.getElementById('chart-bankroll').getContext('2d');
+    const labels = data.bankroll_series.map((_, i) => i + 1);
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Bankroll',
+          data: data.bankroll_series,
+          borderColor: '#84cc16',
+          backgroundColor: 'rgba(132,204,22,.1)',
+          borderWidth: 2, fill: true, tension: 0.3, pointRadius: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => '€' + c.parsed.y.toFixed(2) } } },
+        scales: {
+          y: { grid: { color: '#1f2937' }, ticks: { color: '#94a3b8', callback: (v) => '€' + v } },
+          x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+        }
+      }
+    });
+
+    const betsDiv = document.getElementById('last-bets');
+    let html = '';
+    data.last_bets.forEach(b => {
+      const cls = b.result === 'win' ? 'bsp-bet-win' : 'bsp-bet-loss';
+      const icon = b.result === 'win' ? '✅' : '❌';
+      const profitStr = (b.profit >= 0 ? '+' : '') + '€' + b.profit.toFixed(2);
+      html += '<div class="bsp-bet-row"><span>' + icon + ' ' + b.event + ' <span style="color:#94a3b8">(' + b.market + ' @ ' + b.quota.toFixed(2) + ')</span></span><span class="' + cls + '">' + profitStr + '</span></div>';
+    });
+    if (html === '') html = '<div style="color:#94a3b8">Nessuna giocata ancora.</div>';
+    betsDiv.innerHTML = html;
+  } catch (e) {
+    document.getElementById('kpi-bankroll').textContent = 'Errore';
+    console.error('Errore:', e);
+  }
+})();
+</script>
+</body>
+</html>
