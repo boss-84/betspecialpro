@@ -35,7 +35,7 @@
 <h3>🎯 Ultime 10 giocate</h3>
 <div id="last-bets" class="bsp-bets-box"><div style="color:#94a3b8">Caricamento...</div></div>
 
-<p class="bsp-updated">Aggiornato automaticamente. Ultimo sync: <span id="last-update">—</span></p>
+<p class="bsp-updated">Aggiornato: <span id="last-update">—</span></p>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
@@ -48,25 +48,53 @@
     const rawUrl = gist.files['betspecialpro_stats.json'].raw_url;
     const data = await (await fetch(rawUrl)).json();
 
-    document.getElementById('kpi-bankroll').textContent = '€' + data.bankroll.toFixed(2);
-    const pl = document.getElementById('kpi-pl');
-    pl.textContent = (data.p_l >= 0 ? '+' : '') + '€' + data.p_l.toFixed(2);
-    pl.style.color = data.p_l >= 0 ? '#84cc16' : '#ef4444';
-    document.getElementById('kpi-wr').textContent = data.win_rate.toFixed(1) + '%';
-    const roi = document.getElementById('kpi-roi');
-    roi.textContent = (data.roi >= 0 ? '+' : '') + data.roi.toFixed(1) + '%';
-    roi.style.color = data.roi >= 0 ? '#84cc16' : '#ef4444';
-    document.getElementById('last-update').textContent = data.updated;
+    // Bankroll %
+    let bankrollTxt = '—';
+    let bankrollColor = '#94a3b8';
+    if (typeof data.bankroll_pct === 'number') {
+      if (data.bankroll_pct < -50) {
+        bankrollTxt = 'RESET';
+      } else {
+        bankrollTxt = (data.bankroll_pct >= 0 ? '+' : '') + data.bankroll_pct.toFixed(1) + '%';
+        bankrollColor = data.bankroll_pct >= 0 ? '#84cc16' : '#ef4444';
+      }
+    }
+    const elB = document.getElementById('kpi-bankroll');
+    elB.textContent = bankrollTxt;
+    elB.style.color = bankrollColor;
 
+    // P/L %
+    let plTxt = '—';
+    let plColor = '#94a3b8';
+    if (typeof data.p_l_pct === 'number') {
+      if (data.p_l_pct < -50) {
+        plTxt = 'RESET';
+      } else {
+        plTxt = (data.p_l_pct >= 0 ? '+' : '') + data.p_l_pct.toFixed(1) + '%';
+        plColor = data.p_l_pct >= 0 ? '#84cc16' : '#ef4444';
+      }
+    }
+    const elPL = document.getElementById('kpi-pl');
+    elPL.textContent = plTxt;
+    elPL.style.color = plColor;
+
+    document.getElementById('kpi-wr').textContent = (data.win_rate || 0).toFixed(1) + '%';
+    const elRoi = document.getElementById('kpi-roi');
+    elRoi.textContent = (data.roi >= 0 ? '+' : '') + (data.roi || 0).toFixed(2) + '%';
+    elRoi.style.color = data.roi >= 0 ? '#84cc16' : '#ef4444';
+
+    document.getElementById('last-update').textContent = data.updated || '—';
+
+    // Chart
+    const series = data.bankroll_series_pct || [];
     const ctx = document.getElementById('chart-bankroll').getContext('2d');
-    const labels = data.bankroll_series.map((_, i) => i + 1);
     new Chart(ctx, {
       type: 'line',
       data: {
-        labels: labels,
+        labels: series.map((_, i) => i + 1),
         datasets: [{
           label: 'Bankroll',
-          data: data.bankroll_series,
+          data: series,
           borderColor: '#84cc16',
           backgroundColor: 'rgba(132,204,22,.1)',
           borderWidth: 2, fill: true, tension: 0.3, pointRadius: 0
@@ -74,21 +102,25 @@
       },
       options: {
         responsive: true,
-        plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => '€' + c.parsed.y.toFixed(2) } } },
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: (c) => c.parsed.y.toFixed(1) + '%' } }
+        },
         scales: {
-          y: { grid: { color: '#1f2937' }, ticks: { color: '#94a3b8', callback: (v) => '€' + v } },
+          y: { grid: { color: '#1f2937' }, ticks: { color: '#94a3b8', callback: (v) => v + '%' } },
           x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
         }
       }
     });
 
+    // Last bets
     const betsDiv = document.getElementById('last-bets');
     let html = '';
-    data.last_bets.forEach(b => {
+    (data.last_bets || []).forEach(b => {
       const cls = b.result === 'win' ? 'bsp-bet-win' : 'bsp-bet-loss';
       const icon = b.result === 'win' ? '✅' : '❌';
-      const profitStr = (b.profit >= 0 ? '+' : '') + '€' + b.profit.toFixed(2);
-      html += '<div class="bsp-bet-row"><span>' + icon + ' ' + b.event + ' <span style="color:#94a3b8">(' + b.market + ' @ ' + b.quota.toFixed(2) + ')</span></span><span class="' + cls + '">' + profitStr + '</span></div>';
+      const pctStr = (b.profit_pct >= 0 ? '+' : '') + (b.profit_pct || 0).toFixed(2) + '%';
+      html += '<div class="bsp-bet-row"><span>' + icon + ' ' + b.event + ' <span style="color:#94a3b8">(' + b.market + ' @ ' + b.quota.toFixed(2) + ')</span></span><span class="' + cls + '">' + pctStr + '</span></div>';
     });
     if (html === '') html = '<div style="color:#94a3b8">Nessuna giocata ancora.</div>';
     betsDiv.innerHTML = html;
