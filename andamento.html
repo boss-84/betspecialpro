@@ -52,7 +52,7 @@
     let bankrollTxt = '—';
     let bankrollColor = '#94a3b8';
     if (typeof data.bankroll_pct === 'number') {
-      if (data.bankroll_pct < -50) {
+      if (data.bankroll_pct < -80) {
         bankrollTxt = 'RESET';
       } else {
         bankrollTxt = (data.bankroll_pct >= 0 ? '+' : '') + data.bankroll_pct.toFixed(1) + '%';
@@ -67,7 +67,7 @@
     let plTxt = '—';
     let plColor = '#94a3b8';
     if (typeof data.p_l_pct === 'number') {
-      if (data.p_l_pct < -50) {
+      if (data.p_l_pct < -80) {
         plTxt = 'RESET';
       } else {
         plTxt = (data.p_l_pct >= 0 ? '+' : '') + data.p_l_pct.toFixed(1) + '%';
